@@ -1,7 +1,6 @@
 - 👋 Hi, I’m @ctfbindsec
 
-- 👀 I’m the CEO of Bind Security's, Inc - Delaware & Melbourne, AUS
+   - 👀 I’m the CEO of Bind Security's, Inc
   
-- 📫 How to reach me: [bindsec.us](https://bindsec.us) | email: [ceo@bindsecuritys.com](mailto:ceo@bindsecuritys.com)
-
-- TG: @bindsecurityinc
+           - 📫 How to reach me:
+                      - TG: @bindsecurityinc
