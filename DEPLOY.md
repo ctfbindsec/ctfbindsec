@@ -72,6 +72,15 @@ CTFQUANT_DRY_RUN=true ctfquant
 Dry mode connects to HTX public WS, runs the Risk Engine, generates proposed orders, sends them to Telegram, but **does not place real orders even on approval**. Use this until you have seen at least one full Telegram approval cycle and one synthetic kill-switch trip.
 
 ### Going live
+
+**Important**: v0 ships with live submission **disabled at the orchestrator** (`_execute_approved` in `src/ctfquant/orchestrator.py` returns a "not enabled" Telegram notice in non-dry mode). This is on purpose — you should run dry-mode for at least 24h, observe ≥3 full propose→approve→(simulated submit) cycles, and watch a manually-induced kill-switch trip before flipping the switch.
+
+To enable live submission:
+1. Run dry mode for 24h+, confirm Telegram approvals work, and at least one synthetic kill-switch trips and resolves cleanly.
+2. Edit `src/ctfquant/orchestrator.py::_execute_approved` and replace the "not enabled" stub with a real `htx.place_cross_order(...)` call. The `place_cross_order` method is implemented in `venue_htx.py` and ready.
+3. Set `CTFQUANT_DRY_RUN=false` in `.env`.
+4. Restart.
+
 ```bash
 CTFQUANT_DRY_RUN=false ctfquant
 ```
@@ -160,6 +169,15 @@ The default-correct action after a kill-switch trip is **stop trading for the da
 - **Funding**: at +0.5%/8h funding on a $20 short, you accrue $0.10 per funding interval ≈ $0.30/day if held continuously.
 - **Slippage**: 5–20bps typical on liquid alts; higher on thin alts. Already inside `max_slippage_bps`.
 - **Net expected**: ~$0–$2 per week of paper-realised PnL across a few captures. Maybe negative if funding flips. The point is the system, not the PnL.
+
+## Known issues / caveats
+
+- **Geo-blocking**: HTX returns 403 from many cloud-provider IPs (AWS, GCP, some Azure). Run from a residential connection or an Asia-region VPS (Tokyo / Singapore). Verify with `curl https://api.hbdm.com/linear-swap-api/v1/swap_contract_info` before launching.
+- **Account-info parsing**: `_account_from_htx` is best-effort across HTX account types. If your `/swap_cross_account_info` shape is different (e.g. unified-account), NAV may read 0 and the system will refuse to size orders. Fix by editing the parser to match your account's response.
+- **Live submission stub**: as noted above, `_execute_approved` is a stub in v0. Required to flip on by hand to actually trade.
+- **Funding-rate WS topic**: v0 polls funding via REST every 30s (simpler, predictable). HTX does push funding on `market.<contract>.funding_rate` if you want lower latency in v1.
+- **Rate-limit guard**: a naive 144/3s sliding window. If you trigger it the system sleeps; if HTX returns 429 anyway, you'll see it in logs. Adjust if you hit it routinely.
+- **Universe selection**: filters to top ~12 USDT-quoted contracts where 1 ct ≤ 10% NAV. If the v0 universe is empty for your NAV, increase `CTFQUANT_NAV_USD` or relax `universe_max_contract_pct_nav`.
 
 ## When to stop the experiment
 
