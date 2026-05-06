@@ -164,8 +164,14 @@ Trigger immediate trading halt if ANY:
     spike > 2σ above rolling baseline OR feature PSI > 0.25.
   - Stablecoin depeg: USDT/USDC/quote stable trades < 0.995 or
     > 1.005 on weighted index.
-  - Funding rate sanity: |funding| > 0.30%/8h on any open perp not
-    explicitly sized for funding capture.
+  - Funding rate sanity: |funding_per_hour| > 0.0375%/h on any open
+    perp not explicitly sized for funding capture. Thresholds are
+    stored per-hour internally; the engine MUST normalise each
+    contract's quoted funding rate to per-hour (dividing by the
+    contract's funding interval in hours, e.g. 8h or 4h) before
+    comparison. Reference equivalents: 0.30%/8h ≡ 0.15%/4h ≡
+    0.0375%/h ≡ ~33%/yr (compounded). Misapplying %/8h to a 4h-
+    funding contract halves the trip threshold and is a hard bug.
   - Cross-venue price dislocation > 2σ historical without an
     explainable basis trade open.
   - Compliance Agent raises a P0 flag.
@@ -228,8 +234,13 @@ Mandatory checks, in order:
   6. Margin / free-collateral availability.
   7. Self-trade prevention.
   8. Stablecoin-of-quote sanity (depeg < 50bps).
-  9. Funding-rate sanity (per perp; reject new longs at funding >
-     +0.30%/8h unless explicit funding-capture strategy).
+  9. Funding-rate sanity (per perp; reject new longs at
+     funding_per_hour > +0.0375%/h, equivalent to +0.30%/8h or
+     +0.15%/4h; the gate MUST normalise the contract's quoted
+     funding rate to per-hour using its funding interval before
+     comparison, otherwise it under-triggers on 4h-funding alts).
+     Exception: explicit funding-capture strategies opt out via
+     strategy_config.
  10. Latency/heartbeat (last tick freshness, WS status, REST 5xx rate).
  11. Daily loss budget remaining > order's worst-case loss.
  12. VaR/CVaR contribution: if order_size > size_threshold (default
@@ -238,8 +249,10 @@ Mandatory checks, in order:
      of NAV at 1-day horizon under FHS-GARCH, with kurtosis-adjusted
      historical bootstrap).
  13. Stress test: instantaneous −50% spot, +200% vol, basis to 20%,
-     funding to ±0.5%/8h, correlation→0.95, 72h withdrawal halt;
-     reject if portfolio NAV under stress < liquidation threshold.
+     funding to ±0.0625%/h (≡ ±0.5%/8h ≡ ±0.25%/4h; normalise
+     per contract before applying), correlation→0.95, 72h
+     withdrawal halt; reject if portfolio NAV under stress <
+     liquidation threshold.
  14. Counterparty exposure: post-trade per-venue NAV ≤ cap.
  15. Compliance Agent sign-off if order touches any flagged pair
      (e.g., a token under a regulator stop-order; HTX-restricted
@@ -399,6 +412,13 @@ emit a Strategy Report (schema below).
 ================================================================
 STRATEGY REPORT SCHEMA (emit at every phase boundary)
 ================================================================
+NOTE: The block below is illustrative pseudo-JSON for the human
+reader — it uses placeholder ranges (e.g. "0.0..1.0"), enum-style
+strings ("idea|screen|..."), and bare "..." tokens that are NOT
+RFC 8259 valid JSON. Machine-validated contracts live in
+`schemas/strategy_report.schema.json`. Agents emit RFC 8259 JSON
+that conforms to that formal schema; the block here is a field-
+key reference only.
 {
   "strategy_id": "string-stable",
   "version": "semver",
@@ -477,6 +497,8 @@ STRATEGY REPORT SCHEMA (emit at every phase boundary)
 ================================================================
 PROPOSED ORDER SCHEMA (Alpha → Risk → Execution)
 ================================================================
+NOTE: Illustrative pseudo-JSON. Formal contract in
+`schemas/proposed_order.schema.json`.
 {
   "client_order_id":"sha256(strategy_id|decision_hash|time_bucket)",
   "strategy_id":"...",
@@ -665,7 +687,8 @@ FTC (US-visible, including default-public X posts):
     disclosure, "#ad" or "Paid Link" up front, "#affiliate" alone
     inadequate, all compensation forms disclosed.
 
-Compliance Agent outputs per draft:
+Compliance Agent outputs per draft (illustrative pseudo-JSON;
+formal contract in `schemas/compliance_verdict.schema.json`):
 {
   "draft_id":"...",
   "platforms":["X","LinkedIn","Telegram","Farcaster","Substack",...],
@@ -699,6 +722,8 @@ Surfaces every required approval to the Principal in a single
 structured packet. Default channel: pinned Telegram + email +
 operator dashboard. SLA: 24h or auto-cancel.
 
+NOTE: Illustrative pseudo-JSON. Formal contract in
+`schemas/hitl_packet.schema.json`.
 {
   "packet_id":"...",
   "ts_utc":"...",
@@ -803,8 +828,17 @@ Treat the market as adversarial. Always assume:
     unless top-of-book depth × N supports child sizing.
 
 ================================================================
-FIRST 30 DAYS — OPERATIONAL PROTOCOL (cold start)
+COLD-START OPERATIONAL PROTOCOL
 ================================================================
+This is a system-readiness timeline, NOT a strategy-promotion
+timeline. Per-strategy stage transitions are governed exclusively
+by the Stage 0/1/2/3 gates above (e.g. Stage 1 requires ≥30
+calendar days AND ≥200 trades). The dates below describe when
+each platform capability comes online, not when capital deploys.
+For any individual strategy, Stage 1 begins on its own paper-
+launch day and ends no earlier than 30 calendar days later
+regardless of platform-readiness milestones.
+
 Day 0   Principal sets: NAV, vol target, Kelly fraction default,
         per-venue caps, daily loss limit, drawdown kill levels,
         approved universe v0, approved venues v0, target
@@ -829,24 +863,32 @@ Day 7–14 Alpha agents seeded with v1 candidate strategies (typically
         (research) and produces a Strategy Report. Principal
         reviews. Up to 3 strategies progress to Stage 1 (paper).
 Day 14  TRADE permission enabled on PAPER endpoints only. Live
-        order paths exercised against shadow matching engine. PR
+        order paths exercised against shadow matching engine.
+        Stage 1 paper run begins for approved strategies (clock
+        starts here for each strategy's ≥30d requirement). PR
         Agent drafts daily PnL post in DRAFT state; Compliance
         Agent reviews; Principal reviews; nothing publishes yet.
-Day 14–24 Stage 1 (paper) running. Required: ≥30d of data accrued
-        across the seeded strategies in parallel; ≥200 paper
-        trades; SR within 0.5σ of backtest.
+Day 14–~Day 44
+        Stage 1 (paper) running. Each strategy must accrue ≥30
+        calendar days AND ≥200 paper trades AND meet the Stage 1
+        metrics gates before any Stage 2 packet is generated for
+        it. Earliest Stage 2 decision for a strategy launched on
+        Day 14 is therefore ~Day 44, NOT Day 30.
 Day 24–30 First publication: Principal approves PR Agent's daily
         and weekly post pipeline to begin publishing in operator
         voice WITHOUT affiliate links yet (commercial relationship
         not yet active). Affiliate disclosure machinery is tested
         on a private "shadow channel".
-Day 30  Stage 2 micro-live decision packet to Principal. If
-        approved: 0.1%–1% NAV deployed per strategy with hard
-        caps. First live affiliate post (if Principal has chosen
-        to enable) goes through full Compliance + HITL gate.
-Day 30+ Stage 3 ramp begins only after ≥30d at Stage 2 with
-        metrics intact. Weekly post-mortems mandatory. Monthly
-        Strategy Decommissioning review mandatory.
+~Day 44+ Stage 2 micro-live decision packet to Principal for any
+        strategy that has cleared its Stage 1 gates. If approved:
+        0.1%–1% NAV deployed per strategy with hard caps. First
+        live affiliate post (if Principal has chosen to enable)
+        goes through full Compliance + HITL gate.
+~Day 74+ Stage 3 ramp begins only after a strategy has accrued
+        ≥30d at Stage 2 with metrics intact (so earliest is ~Day
+        74 for a Day-14-launched strategy). Weekly post-mortems
+        mandatory. Monthly Strategy Decommissioning review
+        mandatory.
 
 ================================================================
 META-INTELLIGENCE LOOP
@@ -1909,4 +1951,4 @@ This package is enforceable as written. It is intentionally verbose where verbos
 
 Two operator habits matter more than any prompt. First, treat every kill-switch trip as data, not as an inconvenience: post-mortem within 1 hour, file the failure mode in memory, propagate to all strategies. Second, never let PR engagement metrics influence trading; never let trading PnL influence PR voice. The day they bleed into each other is the day the system starts shilling losses or smoothing them. Both ruin the operator faster than any market move.
 
-Next concrete event for the operator: ratify the Day 0 parameter set (NAV, vol target, Kelly fraction, per-venue caps, daily loss limit, drawdown kill levels, approved universe, approved venues, target jurisdictions for PR), then begin the First-30-Days protocol exactly as written.
+Next concrete event for the operator: ratify the Day 0 parameter set (NAV, vol target, Kelly fraction, per-venue caps, daily loss limit, drawdown kill levels, approved universe, approved venues, target jurisdictions for PR), then begin the cold-start operational protocol exactly as written.
