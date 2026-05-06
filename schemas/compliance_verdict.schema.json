@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ctfbindsec.example/schemas/compliance_verdict.schema.json",
+  "title": "ComplianceVerdict",
+  "description": "Per-draft Compliance Agent verdict. Source: Master Prompt Package v4, Artefact A.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "draft_id",
+    "platforms",
+    "target_jurisdictions",
+    "checks",
+    "verdict",
+    "p0_p1_p2",
+    "rationale",
+    "approver_id"
+  ],
+  "properties": {
+    "draft_id": { "type": "string", "minLength": 1 },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "enum": ["X", "LinkedIn", "Telegram", "Farcaster", "Substack", "Discord", "YouTube", "TikTok"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "target_jurisdictions": {
+      "type": "array",
+      "items": {
+        "enum": ["AU", "UK", "HK", "US", "EU", "SG", "JP", "global"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "status"],
+        "properties": {
+          "rule": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail", "n/a"] },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "verdict": {
+      "enum": ["approved", "approved_with_edits", "hitl_required", "rejected"]
+    },
+    "edits_required": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["locator", "reason", "suggested"],
+        "properties": {
+          "locator": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "suggested": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "p0_p1_p2": { "enum": ["P0", "P1", "P2", "none"] },
+    "rationale": { "type": "string", "minLength": 1 },
+    "approver_id": {
+      "type": "string",
+      "description": "compliance_agent_v<semver> for automated, HUMAN:<operator_id> for HITL.",
+      "pattern": "^(compliance_agent_v\\d+\\.\\d+\\.\\d+|HUMAN:[A-Za-z0-9_.-]+)$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "approved_with_edits" } } },
+      "then": { "required": ["edits_required"] }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "rejected" } } },
+      "then": {
+        "properties": { "p0_p1_p2": { "enum": ["P0", "P1"] } }
+      }
+    }
+  ]
+}
