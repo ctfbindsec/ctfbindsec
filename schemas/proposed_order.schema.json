@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ctfbindsec.example/schemas/proposed_order.schema.json",
+  "title": "ProposedOrder",
+  "description": "Cross-component contract for orders flowing Alpha -> Risk -> Execution. Source: Master Prompt Package v4, Artefact A.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "client_order_id",
+    "strategy_id",
+    "decision_hash",
+    "venue",
+    "symbol",
+    "side",
+    "size_usd",
+    "order_type",
+    "tif",
+    "reduce_only",
+    "max_slippage_bps",
+    "ttl_seconds",
+    "kill_switch_inheritance",
+    "evidence_ids",
+    "stage",
+    "approval_required"
+  ],
+  "properties": {
+    "client_order_id": {
+      "type": "string",
+      "description": "sha256(strategy_id|decision_hash|time_bucket); idempotency key.",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "strategy_id": { "type": "string", "minLength": 1 },
+    "decision_hash": { "type": "string", "minLength": 1 },
+    "venue": {
+      "type": "string",
+      "description": "Execution venue. CEX symbols (HTX|OKX|BINANCE|BYBIT|COINBASE) or DEX:<protocol>[:<chain>] (e.g. DEX:univ3, DEX:cow, DEX:1inch_fusion, DEX:jito).",
+      "pattern": "^(HTX|OKX|BINANCE|BYBIT|COINBASE|DEX:[A-Za-z0-9_]+(:[A-Za-z0-9_]+)?)$"
+    },
+    "symbol": { "type": "string", "minLength": 1 },
+    "side": { "enum": ["buy", "sell"] },
+    "size_usd": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Notional in USD. Engines compute size_contracts from contract spec at submission time; emitting both is allowed but size_usd is canonical."
+    },
+    "size_contracts": { "type": "number", "exclusiveMinimum": 0 },
+    "order_type": {
+      "enum": [
+        "limit", "market", "post_only", "ioc", "fok",
+        "stop", "trigger", "trailing", "bbo5", "bbo10", "bbo20"
+      ]
+    },
+    "price": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Required for non-market order types. Engines reject limit/post_only/etc. without price."
+    },
+    "tif": { "enum": ["GTC", "IOC", "FOK", "POST_ONLY"] },
+    "reduce_only": { "type": "boolean" },
+    "max_slippage_bps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Hard cap. DEX legs MUST be <= 50 (0.5%); enforced upstream."
+    },
+    "ttl_seconds": { "type": "integer", "minimum": 0 },
+    "max_child_notional_usd": { "type": "number", "exclusiveMinimum": 0 },
+    "participation_cap_adv": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "description": "Fraction of ADV; per master prompt, child orders <= 0.005."
+    },
+    "mev_route": {
+      "enum": ["none", "flashbots", "cow", "1inch_fusion", "jito", "mev_blocker"]
+    },
+    "kill_switch_inheritance": { "const": true },
+    "evidence_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "expected_fill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["price", "slippage_bps", "fill_prob"],
+      "properties": {
+        "price": { "type": "number", "exclusiveMinimum": 0 },
+        "slippage_bps": { "type": "number" },
+        "fill_prob": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "stage": { "enum": ["paper", "micro", "ramped", "full"] },
+    "approval_required": {
+      "type": "array",
+      "items": { "enum": ["risk_engine", "compliance", "hitl"] },
+      "uniqueItems": true,
+      "contains": { "const": "risk_engine" }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Audit-only short reasoning. Not consumed by any decision agent."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "venue": { "pattern": "^DEX:" }
+        }
+      },
+      "then": {
+        "required": ["mev_route"],
+        "properties": {
+          "mev_route": { "not": { "const": "none" } },
+          "max_slippage_bps": { "maximum": 50 }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ctfbindsec.example/schemas/hitl_packet.schema.json",
+  "title": "HITLPacket",
+  "description": "Decision packet surfaced to the Principal. Source: Master Prompt Package v4, Artefact A.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packet_id",
+    "ts_utc",
+    "type",
+    "summary_one_line",
+    "context",
+    "options",
+    "default_if_timeout",
+    "evidence_ids",
+    "audit_trail"
+  ],
+  "properties": {
+    "packet_id": { "type": "string", "minLength": 1 },
+    "ts_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "enum": [
+        "strategy_stage_transition",
+        "order_above_threshold",
+        "risk_param_change",
+        "capital_reallocation",
+        "compliance_p1_post",
+        "kill_switch_unblock",
+        "new_venue_enable",
+        "api_key_rotation"
+      ]
+    },
+    "summary_one_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["what_changed", "why_now", "alternatives_considered", "recommendation", "agent_confidence"],
+      "properties": {
+        "what_changed": { "type": "string", "minLength": 1 },
+        "why_now": { "type": "string", "minLength": 1 },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["option", "pros", "cons"],
+            "properties": {
+              "option": { "type": "string" },
+              "pros": { "type": "string" },
+              "cons": { "type": "string" }
+            }
+          }
+        },
+        "recommendation": { "type": "string", "minLength": 1 },
+        "agent_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "risk_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expected_PnL_distribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p5", "p50", "p95"],
+          "properties": {
+            "p5": { "type": "number" },
+            "p50": { "type": "number" },
+            "p95": { "type": "number" }
+          }
+        },
+        "VaR_97_5_post": { "type": "number" },
+        "CVaR_97_5_post": { "type": "number" },
+        "stress_NAV_post": { "type": "number" },
+        "max_DD_estimate": { "type": "number" },
+        "counterparty_concentration_post": { "type": "object" }
+      }
+    },
+    "compliance_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verdict": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "options": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "effect"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "params": { "type": "object" },
+          "effect": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "default_if_timeout": {
+      "type": "string",
+      "description": "option.id selected when SLA expires. Per master prompt this MUST be a non-action ('reject' or 'defer_24h')."
+    },
+    "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "audit_trail": { "type": "array", "items": { "type": "string" } }
+  }
+}

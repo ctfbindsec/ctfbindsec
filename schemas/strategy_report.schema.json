@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ctfbindsec.example/schemas/strategy_report.schema.json",
+  "title": "StrategyReport",
+  "description": "Emitted at every strategy lifecycle phase boundary. Source: Master Prompt Package v4, Artefact A.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "strategy_id",
+    "version",
+    "phase",
+    "hypothesis",
+    "economic_rationale",
+    "data_and_features",
+    "model_logic",
+    "regime_suitability",
+    "backtest_methodology",
+    "key_metrics",
+    "risk_profile",
+    "execution_plan",
+    "failure_modes",
+    "edge_decay_indicators",
+    "deployment_decision",
+    "evidence_ids",
+    "self_critique",
+    "confidence"
+  ],
+  "properties": {
+    "strategy_id": { "type": "string", "minLength": 1 },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "phase": {
+      "enum": ["idea", "screen", "validation", "deploy", "live", "evolve", "retired"]
+    },
+    "hypothesis": { "type": "string", "minLength": 20 },
+    "economic_rationale": { "type": "string", "minLength": 20 },
+    "data_and_features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "lookback", "features", "labels"],
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "lookback": { "type": "string", "minLength": 1 },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "definition", "leakage_check"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "definition": { "type": "string", "minLength": 1 },
+              "leakage_check": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "labels": { "type": "string", "minLength": 1 }
+      }
+    },
+    "model_logic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["math", "params", "constraints"],
+      "properties": {
+        "math": { "type": "string", "minLength": 1 },
+        "params": { "type": "object" },
+        "constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "regime_suitability": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["regime", "expected_SR", "observed_SR"],
+        "properties": {
+          "regime": { "type": "string", "minLength": 1 },
+          "expected_SR": { "type": "number" },
+          "observed_SR": { "type": "number" }
+        }
+      },
+      "minItems": 1
+    },
+    "backtest_methodology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fees_bps", "funding_treatment", "slippage_model",
+        "latency_ms", "walk_forward", "CPCV", "monte_carlo",
+        "regime_segmentation", "deflated_sharpe", "PBO",
+        "min_track_record_length_days"
+      ],
+      "properties": {
+        "fees_bps": { "type": "number", "minimum": 0 },
+        "funding_treatment": { "type": "string", "minLength": 1 },
+        "slippage_model": { "type": "string", "minLength": 1 },
+        "latency_ms": { "type": "number", "minimum": 0 },
+        "walk_forward": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["train", "test", "step"],
+          "properties": {
+            "train": { "type": "string" },
+            "test": { "type": "string" },
+            "step": { "type": "string" }
+          }
+        },
+        "CPCV": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["N", "k", "purge", "embargo"],
+          "properties": {
+            "N": { "type": "integer", "minimum": 0 },
+            "k": { "type": "integer", "minimum": 0 },
+            "purge": { "type": "string" },
+            "embargo": { "type": "string" }
+          }
+        },
+        "monte_carlo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["B", "method"],
+          "properties": {
+            "B": { "type": "integer", "minimum": 1000 },
+            "method": { "enum": ["permutation", "bootstrap", "jump"] }
+          }
+        },
+        "regime_segmentation": { "type": "string", "minLength": 1 },
+        "deflated_sharpe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["DSR", "p_value", "trials"],
+          "properties": {
+            "DSR": { "type": "number" },
+            "p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "trials": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "PBO": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min_track_record_length_days": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "key_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Sharpe_IS", "Sharpe_OOS", "OOS_IS_ratio",
+        "Sortino", "Calmar", "max_DD", "DD_duration_days",
+        "skew", "kurtosis", "turnover_annual", "capacity_usd",
+        "tail_VaR_97_5", "CVaR_97_5"
+      ],
+      "properties": {
+        "Sharpe_IS": { "type": "number" },
+        "Sharpe_OOS": { "type": "number" },
+        "OOS_IS_ratio": { "type": "number" },
+        "Sortino": { "type": "number" },
+        "Calmar": { "type": "number" },
+        "max_DD": { "type": "number", "maximum": 0 },
+        "DD_duration_days": { "type": "integer", "minimum": 0 },
+        "skew": { "type": "number" },
+        "kurtosis": { "type": "number" },
+        "turnover_annual": { "type": "number", "minimum": 0 },
+        "capacity_usd": { "type": "number", "minimum": 0 },
+        "tail_VaR_97_5": { "type": "number" },
+        "CVaR_97_5": { "type": "number" }
+      }
+    },
+    "risk_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kelly_fraction", "vol_target", "per_asset_caps",
+        "gross_cap", "net_cap", "counterparty_caps"
+      ],
+      "properties": {
+        "kelly_fraction": { "type": "number", "minimum": 0, "maximum": 0.4 },
+        "vol_target": { "type": "number", "exclusiveMinimum": 0 },
+        "per_asset_caps": { "type": "object" },
+        "gross_cap": { "type": "number", "exclusiveMinimum": 0 },
+        "net_cap": { "type": "number", "exclusiveMinimum": 0 },
+        "counterparty_caps": { "type": "object" }
+      }
+    },
+    "execution_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["venues", "order_types", "child_slicing", "participation_cap_adv", "MEV_defence"],
+      "properties": {
+        "venues": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "order_types": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "child_slicing": { "type": "string" },
+        "participation_cap_adv": { "type": "number", "minimum": 0, "maximum": 1 },
+        "MEV_defence": { "type": "string" }
+      }
+    },
+    "failure_modes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "detector"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "detector": { "type": "string", "minLength": 1 },
+          "trip_threshold": { "type": "string" },
+          "action": { "type": "string" }
+        }
+      },
+      "minItems": 1
+    },
+    "edge_decay_indicators": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "deployment_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "capital_pct_of_NAV", "ramp_schedule", "principal_signoff_required", "rollback_triggers"],
+      "properties": {
+        "stage": { "enum": ["paper", "micro", "ramped", "full", "reject"] },
+        "capital_pct_of_NAV": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ramp_schedule": { "type": "array", "items": { "type": "string" } },
+        "principal_signoff_required": { "type": "boolean" },
+        "rollback_triggers": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "self_critique": { "type": "string", "minLength": 1 },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_real", "edge_persistent", "calibration_note"],
+      "properties": {
+        "edge_real": { "type": "number", "minimum": 0, "maximum": 1 },
+        "edge_persistent": { "type": "number", "minimum": 0, "maximum": 1 },
+        "calibration_note": { "type": "string" }
+      }
+    }
+  }
+}
